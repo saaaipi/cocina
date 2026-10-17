@@ -142,7 +142,10 @@ tr.me td.nm{font-weight:700}
 .dc .hd .sp{flex:1}
 .dc .date{font-weight:700;font-variant-numeric:tabular-nums;min-width:68px}
 .dc .date.sun{color:var(--no)} .dc .date.sat{color:var(--dinner)}
-.cnt{font-size:12px;font-weight:700;border-radius:99px;padding:2px 9px;font-variant-numeric:tabular-nums}
+.cnt{font:inherit;font-size:12px;font-weight:700;border-radius:99px;padding:2px 9px;font-variant-numeric:tabular-nums;border:0}
+button.cnt{cursor:pointer}
+.rqrow{display:inline-flex;align-items:center;gap:6px;margin-right:10px;font-size:13px}
+.rqrow b{min-width:18px;text-align:center;font-variant-numeric:tabular-nums}
 .cnt.good{background:var(--ok-bg);color:var(--ok)}
 .cnt.bad{background:var(--no-bg);color:var(--no)}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
@@ -185,9 +188,11 @@ details summary{cursor:pointer;font-weight:700}
   <section id="p-staff" class="panel">
     <div class="box">
       <div class="row">
-        <label class="f" style="flex:1 1 160px">名前<input type="text" id="s-name" placeholder="例：さくら" autocomplete="off"></label>
+        <label class="f" style="flex:1 1 160px">名前<input type="text" id="s-name" placeholder="例：さくら" autocomplete="off" list="s-names"></label>
+        <datalist id="s-names"></datalist>
         <label class="f" style="flex:1 1 140px">月<select id="s-month"></select></label>
       </div>
+      <div id="s-namechips" class="chips" hidden></div>
     </div>
 
     <p class="note" id="s-nocfg" hidden>さいぴーから届いたリンクから開くと、お店の休みの日とイレギュラーシフトが表示されます。</p>
@@ -342,7 +347,7 @@ if(!S.cfg)S.cfg={};
     if(sh){const f=b64d(sh).split(';');const ex={},nt={};
       (f[4]||'').split('|').filter(Boolean).forEach(x=>{const[d,t]=x.split('=');if(t)ex[+d]=t.split(',').filter(Boolean);});
       (f[5]||'').split('|').filter(Boolean).forEach(x=>{const i=x.indexOf('=');if(i>0)nt[+x.slice(0,i)]=x.slice(i+1);});
-      o={m:'20'+f[0].slice(0,2)+'-'+f[0].slice(2,4),L:fromMask(f[1]),D:fromMask(f[2]),h:fromMask(f[3]),ex,nt};}
+      o={m:'20'+f[0].slice(0,2)+'-'+f[0].slice(2,4),L:fromMask(f[1]),D:fromMask(f[2]),h:fromMask(f[3]),ex,nt,names:(f[6]||'').split('|').filter(Boolean)};}
     else{const p=q.get('p');if(!p)return;o=JSON.parse(p);}
     if(!/^\d{4}-\d{2}$/.test(o.m))return;
     const ex={};for(const k in (o.ex||{})){if(Array.isArray(o.ex[k]))ex[+k]=o.ex[k].map(String).slice(0,10);}
@@ -350,9 +355,17 @@ if(!S.cfg)S.cfg={};
     const L=Array.isArray(o.L)?o.L.map(Number):all, D=Array.isArray(o.D)?o.D.map(Number):all.filter(d=>!(o.off||[]).includes(d));
     const nt={};for(const k in (o.nt||{}))nt[+k]=String(o.nt[k]).slice(0,80);
     S.cfg[o.m]={L,D,h:(o.h||[]).map(Number),ex,nt};S.month=o.m;
+    if(Array.isArray(o.names)&&o.names.length)S.roster=o.names.slice(0,60);
   }catch(e){}
 })();
 const cfg=()=>S.cfg[S.month]||null;
+function knownNames(){return [...new Set([...(S.roster||[]),...(S.used||[])])].filter(Boolean).sort(new Intl.Collator('ja').compare);}
+function renderNameChips(){
+  const ns=knownNames();$('s-names').innerHTML=ns.map(n=>`<option value="${esc(n)}">`).join('');
+  const show=ns.filter(n=>n!==S.name);$('s-namechips').hidden=!show.length||!!S.name&&ns.includes(S.name);
+  $('s-namechips').innerHTML='<span class="minor" style="width:100%">前に使った名前（タップで入力）</span>'+show.map(n=>`<button class="chip av" data-nm="${esc(n)}">${esc(n)}</button>`).join('');
+}
+function rememberName(n){if(!n)return;S.used=[...new Set([...(S.used||[]),n])].slice(-20);sSave();}
 const svc=i=>{const c=cfg();if(!c||!c.L)return{L:true,D:true};return{L:c.L.includes(i+1),D:c.D.includes(i+1)};};
 const isOff=i=>{const s=svc(i);return !s.L&&!s.D;};
 const isHolS=i=>{const c=cfg();return !!c&&(c.h||[]).includes(i+1);};
@@ -381,14 +394,15 @@ function brushCode(){if(S.brush!=='T')return S.brush;const t=S.ttime.trim();retu
     $('s-tnote').hidden=true;c[i]=c[i]===code?'':code;sSave();renderStaff();};
   $('s-exlist').onclick=e=>{const b=e.target.closest('.exbtn');if(!b)return;const c=sCodes(),i=+b.dataset.i,code='T:'+b.dataset.t;
     c[i]=c[i]===code?'':code;sSave();renderStaff();};
-  $('s-name').oninput=e=>{S.name=e.target.value.trim();sSave();renderOut();};
+  $('s-name').oninput=e=>{S.name=e.target.value.trim();sSave();renderOut();renderNameChips();};
+  $('s-namechips').onclick=e=>{const b=e.target.closest('[data-nm]');if(!b)return;S.name=b.dataset.nm;$('s-name').value=S.name;sSave();renderOut();renderNameChips();};
   $('s-memo').oninput=e=>{S.memo=e.target.value;sSave();renderOut();};
   $('s-month').onchange=e=>{S.month=e.target.value;sSave();renderStaff();};
   $('s-wd-apply').onclick=()=>{const code=brushCode();if(!code){note('先に時間を入力してください。');return;}
     const w=+$('s-wd').value,c=sCodes();c.forEach((_,i)=>{if(wday(S.month,i+1)===w&&!isOff(i)&&fits(code,i))c[i]=code;});sSave();renderStaff();};
   $('s-fill-x').onclick=()=>{const c=sCodes();c.forEach((v,i)=>{if(!v&&!isOff(i))c[i]='X';});sSave();renderStaff();};
   armButton($('s-clear'),'全部消す',()=>{S.codes[S.month]=[];sSave();renderStaff();});
-  $('s-copy').onclick=()=>copyText(staffMessage(),$('s-toast'),$('s-out'));
+  $('s-copy').onclick=()=>{rememberName(S.name);copyText(staffMessage(),$('s-toast'),$('s-out'));};
 })();
 
 function renderStaff(){
@@ -430,7 +444,7 @@ function renderOut(){
   $('s-warn').hidden=!w.length;$('s-warn').textContent=w.join(' ');
   $('s-out').textContent=staffMessage();
 }
-renderStaff();
+renderStaff();renderNameChips();
 
 /* ---------- 確定シフトの表示（?v=...） ---------- */
 function readShift(){
@@ -474,9 +488,10 @@ if(R){
   $('r-name').oninput=e=>{S.name=e.target.value.trim();sSave();renderReply();};
   $('r-memo').oninput=()=>renderReply();
   $('r-list').onclick=e=>{if(e.target.closest&&e.target.closest('#r-allx')){rRows().forEach(r=>R.ans[r.key]='X');renderReply();return;}
+    if(e.target.closest&&e.target.closest('#r-allu')){rRows().forEach(r=>R.ans[r.key]='U');renderReply();return;}
     const b=e.target.closest('.opt');if(!b)return;const key=b.dataset.key,v=b.dataset.v;
     R.ans[key]=R.ans[key]===v?'':v;renderReply();};
-  $('r-copy').onclick=()=>copyText(replyText(),$('r-toast'),$('r-out'));
+  $('r-copy').onclick=()=>{rememberName(rName());copyText(replyText(),$('r-toast'),$('r-out'));};
   renderReply();
 }
 function rName(){const v=$('r-sel').value;return v==='__other'?$('r-name').value.trim():v;}
@@ -501,7 +516,7 @@ function renderReply(){
       rowOpts(r).map(([k,lab,c])=>`<button class="opt ${c}" data-key="${r.key}" data-v="${k}" aria-pressed="${a===k}">${esc(lab)}</button>`).join('')+
       `<button class="opt" data-key="${r.key}" data-v="U" aria-pressed="${a==='U'}">未定</button>`+
       `<button class="opt no" data-key="${r.key}" data-v="X" aria-pressed="${a==='X'}">入れない</button></div></div>`;}).join('')+
-      `<div class="row" style="margin-top:10px"><button class="btn danger small" id="r-allx">全部「入れない」にする</button></div>`
+      `<div class="row" style="margin-top:10px"><button class="btn ghost small" id="r-allu">全部「未定」にする</button><button class="btn danger small" id="r-allx">全部「入れない」にする</button></div>`
     :'<p class="hint">あなたに出ている募集枠はありません。ありがとうございます！</p>';
   const left=rows.filter(r=>!R.ans[r.key]).length,w=[];
   if(!rName())w.push('名前を選んでください。');if(left)w.push(`まだ${left}枠に答えていません。`);
