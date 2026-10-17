@@ -83,11 +83,19 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .dayoff .n{font-size:12px}
 .day .only{font-size:10px;color:var(--muted);font-weight:500;line-height:20px}
 .svc{display:flex;gap:6px;flex-wrap:wrap}
+.day .ev{position:absolute;top:2px;left:4px;font-size:9px;color:var(--lunch);line-height:1}
+.evnote{font-size:13px;background:var(--lunch-bg);color:var(--fg);border-radius:8px;padding:4px 10px}
+.evlist{display:flex;flex-direction:column;gap:6px;font-size:14px}
+.evlist .dt{font-weight:700;font-variant-numeric:tabular-nums;margin-right:8px}
+.fab{position:fixed;right:calc(12px + env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:6px;z-index:20}
+.fab button{width:36px;height:36px;border-radius:50%;border:1px solid var(--line);background:var(--surface);color:var(--fg);font:inherit;font-size:15px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.18);opacity:.92}
 .tag{font-size:11px;font-weight:700;border-radius:5px;padding:0 6px;background:var(--no-bg);color:var(--no)}
 .dayoff .p{font-size:12px;font-weight:700;background:var(--surface);border-radius:5px;padding:0 5px}
 .exlist{display:flex;flex-direction:column;gap:8px}
 .exrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.exrow .dt{font-weight:700;font-variant-numeric:tabular-nums;min-width:76px}
+.exrow .dt{font-weight:700;font-variant-numeric:tabular-nums}
+.exrow .arw{color:var(--muted);font-size:12px}
+.exrow .nt{font-size:14px}
 .exbtn{font:inherit;font-size:13px;border:2px solid transparent;border-radius:8px;padding:4px 10px;cursor:pointer}
 .exbtn[aria-pressed="true"]{border-color:var(--fg)}
 .exbtn[aria-pressed="true"]::before{content:"✓ "}
@@ -169,7 +177,7 @@ details summary{cursor:pointer;font-weight:700}
       <p class="hint">選んだ時間が入ります。もう一度タップで消えます。</p>
       <p class="note" id="s-tnote" hidden></p>
       <div class="cal" id="s-cal"></div>
-      <p class="hint" id="s-legend" hidden><span style="color:var(--custom)">●</span> がついた日は特別な時間があります（下で選べます）。斜線の日はお店が休み、「夜のみ」「昼のみ」はその時間だけ営業です。</p>
+      <p class="hint" id="s-legend" hidden><span style="color:var(--custom)">●</span> がついた日はイレギュラーシフトがあります（下で選べます）。<span style="color:var(--lunch)">★</span> はイベントなどの予定がある日です。斜線の日はお店が休み、「夜のみ」「昼のみ」はその時間だけ営業です。</p>
       <div class="row">
         <select id="s-wd" style="flex:1 1 110px" aria-label="曜日"></select>
         <button class="btn ghost small" id="s-wd-apply">この曜日に全部入れる</button>
@@ -180,8 +188,13 @@ details summary{cursor:pointer;font-weight:700}
       </div>
     </div>
 
+    <div class="box" id="s-evbox" hidden>
+      <h2>お店の予定</h2>
+      <div class="evlist" id="s-evlist"></div>
+    </div>
+
     <div class="box" id="s-exbox" hidden>
-      <h2>特別な時間がある日</h2>
+      <h2>イレギュラーシフト</h2>
       <p class="hint">出られる時間をタップしてください（もう一度タップで取り消し）。</p>
       <div class="exlist" id="s-exlist"></div>
     </div>
@@ -241,6 +254,12 @@ function encCode(c){return !c?'-':isT(c)?'T:'+encodeURIComponent(c.slice(2)):c;}
 function decCode(k){if(k.startsWith('T:')){try{return 'T:'+decodeURIComponent(k.slice(2));}catch(e){return '';}}return (P[k]&&k!=='T')?k:'';}
 
 const $=id=>document.getElementById(id);
+/* 短いリンク用：日付の集まりを36進数のビットで、全体をbase64urlで */
+function b64e(str){const b=new TextEncoder().encode(str);let t='';b.forEach(x=>t+=String.fromCharCode(x));return btoa(t).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
+function b64d(t){t=t.replace(/-/g,'+').replace(/_/g,'/');while(t.length%4)t+='=';const r=atob(t);return new TextDecoder().decode(Uint8Array.from(r,c=>c.charCodeAt(0)));}
+const toMask=a=>a.reduce((m,d)=>m+2**(d-1),0).toString(36);
+function fromMask(t){let n=parseInt(t||'0',36),r=[];for(let d=1;n>0&&d<32;d++){if(n%2)r.push(d);n=Math.floor(n/2);}return r;}
+const safeTxt=t=>String(t).replace(/;/g,'；').replace(/\|/g,'｜').replace(/=/g,'＝').replace(/,/g,'、').replace(/[\r\n]+/g,' ');
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const store={get(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}},
              set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
@@ -268,12 +287,18 @@ function armButton(btn,label,action){
 const S=Object.assign({name:'',month:monthOffset(1),codes:{},memo:'',brush:'D',ttime:'',cfg:{}},store.get('cu-shift-staff')||{});
 if(!S.cfg)S.cfg={};
 (function readLink(){ // 店長のリンク ?p=... から休み・特別時間を受け取る
-  try{const p=new URLSearchParams(location.search).get('p');if(!p)return;
-    const o=JSON.parse(p);if(!/^\d{4}-\d{2}$/.test(o.m))return;
+  try{const q=new URLSearchParams(location.search),sh=q.get('s');let o;
+    if(sh){const f=b64d(sh).split(';');const ex={},nt={};
+      (f[4]||'').split('|').filter(Boolean).forEach(x=>{const[d,t]=x.split('=');if(t)ex[+d]=t.split(',').filter(Boolean);});
+      (f[5]||'').split('|').filter(Boolean).forEach(x=>{const i=x.indexOf('=');if(i>0)nt[+x.slice(0,i)]=x.slice(i+1);});
+      o={m:'20'+f[0].slice(0,2)+'-'+f[0].slice(2,4),L:fromMask(f[1]),D:fromMask(f[2]),h:fromMask(f[3]),ex,nt};}
+    else{const p=q.get('p');if(!p)return;o=JSON.parse(p);}
+    if(!/^\d{4}-\d{2}$/.test(o.m))return;
     const ex={};for(const k in (o.ex||{})){if(Array.isArray(o.ex[k]))ex[+k]=o.ex[k].map(String).slice(0,10);}
     const n=daysIn(o.m),all=Array.from({length:n},(_,i)=>i+1);
     const L=Array.isArray(o.L)?o.L.map(Number):all, D=Array.isArray(o.D)?o.D.map(Number):all.filter(d=>!(o.off||[]).includes(d));
-    S.cfg[o.m]={L,D,h:(o.h||[]).map(Number),ex};S.month=o.m;
+    const nt={};for(const k in (o.nt||{}))nt[+k]=String(o.nt[k]).slice(0,80);
+    S.cfg[o.m]={L,D,h:(o.h||[]).map(Number),ex,nt};S.month=o.m;
   }catch(e){}
 })();
 const cfg=()=>S.cfg[S.month]||null;
@@ -321,18 +346,22 @@ function renderStaff(){
   const c=sCodes(),n=c.length,first=wday(S.month,1);
   let h=[...WD].map((w,i)=>`<div class="wd ${wcls(i)}">${w}</div>`).join('');
   for(let i=0;i<first;i++)h+='<div></div>';
-  const cf=cfg(),ex=cf?cf.ex:{};
+  const cf=cfg(),ex=cf?cf.ex:{},nt=(cf&&cf.nt)||{};
   for(let i=0;i<n;i++){const k=c[i],w=wday(S.month,i+1),inf=info(k);
     if(isOff(i)){h+=`<div class="dayoff" aria-label="${i+1}日 休み"><span class="n">${i+1}</span><span class="p">休</span></div>`;continue;}
     const sv=svc(i),hol=isHolS(i),wk=w===0||w===6||hol;
     const only=!sv.L&&wk?'夜のみ':(sv.L&&!sv.D?'昼のみ':'');
-    h+=`<button class="day ${hol?'sun':wcls(w)}" data-i="${i}" aria-label="${i+1}日"><span class="n">${i+1}${hol?'祝':''}</span>${ex[i+1]?'<span class="ex"></span>':''}`+
+    h+=`<button class="day ${hol?'sun':wcls(w)}" data-i="${i}" aria-label="${i+1}日"><span class="n">${i+1}${hol?'祝':''}</span>${ex[i+1]?'<span class="ex"></span>':''}${nt[i+1]?'<span class="ev">★</span>':''}`+
        (inf?`<span class="p ${cls(k)}">${esc(inf.s)}</span>`:`<span class="only">${only}</span>`)+`</button>`;}
   $('s-cal').innerHTML=h;
   $('s-nocfg').hidden=!!cf;$('s-legend').hidden=!cf;
   const days=Object.keys(ex).map(Number).filter(d=>d<=n&&!isOff(d-1)).sort((a,b)=>a-b);
   $('s-exbox').hidden=!days.length;
-  $('s-exlist').innerHTML=days.map(d=>`<div class="exrow"><span class="dt">${+S.month.split('-')[1]}/${d}（${WD[wday(S.month,d)]}）</span>`+
+  const evd=Object.keys(nt).map(Number).filter(d=>d<=n).sort((a,b)=>a-b);
+  $('s-evbox').hidden=!evd.length;
+  $('s-evlist').innerHTML=evd.map(d=>`<div><span class="dt">${+S.month.split('-')[1]}/${d}（${WD[wday(S.month,d)]}）</span>${esc(nt[d])}</div>`).join('');
+  $('s-exlist').innerHTML=days.map(d=>`<div class="exrow"><span class="dt">${d}(${WD[wday(S.month,d)]})</span><span class="arw">▶︎</span>`+
+    (nt[d]?`<span class="nt">${esc(nt[d])}</span><span class="arw">▶︎</span>`:'')+
     ex[d].map(t=>`<button class="exbtn c-T" data-i="${d-1}" data-t="${esc(t)}" aria-pressed="${c[d-1]==='T:'+t}">${esc(t)}</button>`).join('')+'</div>').join('');
   renderOut();
 }
