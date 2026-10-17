@@ -296,7 +296,7 @@ function info(c){
     const st=s?toH(s[1],s[2]):12;
     const en=m?toH(m[3],m[4]):CLOSE;
     const h=Math.max(0,Math.round((en-st)*10)/10);
-    return {s:t,name:'時間指定',t,h,slot:st<16?'L':'D'};
+    return {s:t,name:'時間指定',t,h,slot:'D'}; // イレギュラーはすべてディナー扱い
   }
   return P[c]||null;
 }
