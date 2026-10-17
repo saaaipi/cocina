@@ -167,7 +167,7 @@ details summary{cursor:pointer;font-weight:700}
       </div>
     </div>
 
-    <p class="note" id="s-nocfg" hidden>店長から届いたリンクから開くと、お店の休みの日と特別な時間が表示されます。</p>
+    <p class="note" id="s-nocfg" hidden>さいぴーから届いたリンクから開くと、お店の休みの日とイレギュラーシフトが表示されます。</p>
     <div class="box">
       <h2>① 時間を選ぶ</h2>
       <div class="brushes" id="s-brushes"></div>
@@ -188,11 +188,6 @@ details summary{cursor:pointer;font-weight:700}
       </div>
     </div>
 
-    <div class="box" id="s-evbox" hidden>
-      <h2>お店の予定</h2>
-      <div class="evlist" id="s-evlist"></div>
-    </div>
-
     <div class="box" id="s-exbox" hidden>
       <h2>イレギュラーシフト</h2>
       <p class="hint">出られる時間をタップしてください（もう一度タップで取り消し）。</p>
@@ -205,7 +200,7 @@ details summary{cursor:pointer;font-weight:700}
       <pre class="out" id="s-out"></pre>
       <div class="row">
         <button class="btn" id="s-copy">コピーする</button>
-        <span class="hint">→ 店長のLINEに貼り付けて送ってください</span>
+        <span class="hint">→ さいぴーのLINEに貼り付けて送ってください</span>
       </div>
       <p class="toast" id="s-toast"></p>
     </div>
@@ -357,9 +352,7 @@ function renderStaff(){
   $('s-nocfg').hidden=!!cf;$('s-legend').hidden=!cf;
   const days=Object.keys(ex).map(Number).filter(d=>d<=n&&!isOff(d-1)).sort((a,b)=>a-b);
   $('s-exbox').hidden=!days.length;
-  const evd=Object.keys(nt).map(Number).filter(d=>d<=n).sort((a,b)=>a-b);
-  $('s-evbox').hidden=!evd.length;
-  $('s-evlist').innerHTML=evd.map(d=>`<div><span class="dt">${+S.month.split('-')[1]}/${d}（${WD[wday(S.month,d)]}）</span>${esc(nt[d])}</div>`).join('');
+
   $('s-exlist').innerHTML=days.map(d=>`<div class="exrow"><span class="dt">${d}(${WD[wday(S.month,d)]})</span><span class="arw">▶︎</span>`+
     (nt[d]?`<span class="nt">${esc(nt[d])}</span><span class="arw">▶︎</span>`:'')+
     ex[d].map(t=>`<button class="exbtn c-T" data-i="${d-1}" data-t="${esc(t)}" aria-pressed="${c[d-1]==='T:'+t}">${esc(t)}</button>`).join('')+'</div>').join('');
