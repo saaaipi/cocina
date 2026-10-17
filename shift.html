@@ -232,7 +232,8 @@ details summary{cursor:pointer;font-weight:700}
     <div class="box">
       <h2 id="r-title">追加募集</h2>
       <p class="hint">入れる枠も入れない枠も、分かるところは全部答えてください。</p>
-      <label class="f">名前<input type="text" id="r-name" placeholder="例：さくら" autocomplete="off"></label>
+      <label class="f">名前<select id="r-sel"></select></label>
+      <label class="f" id="r-namebox" hidden>名前を入力<input type="text" id="r-name" placeholder="例：さくら" autocomplete="off"></label>
     </div>
     <div class="box"><div id="r-list"></div></div>
     <div class="box">
@@ -453,7 +454,8 @@ function readBoshu(){
     const m='20'+f[1].slice(0,2)+'-'+f[1].slice(2,4);
     const slots=(f[2]||'').split(',').filter(Boolean).map(x=>({d:parseInt(x,10),s:x.slice(-1),need:+(x.match(/x(\d+)/)||[0,1])[1]})).filter(o=>o.d>0&&(o.s==='L'||o.s==='D'));
     const notes={};(f[3]||'').split('|').filter(Boolean).forEach(x=>{const k=x.indexOf('=');if(k>0)notes[+x.slice(0,k)]=x.slice(k+1);});
-    return {m,slots,notes,ans:{}};
+    const people=(f[4]||'').split('|').filter(Boolean).map(x=>{const k=x.lastIndexOf('=');return k>0?{nm:x.slice(0,k),hide:fromMask(x.slice(k+1))}:{nm:x,hide:[]};});
+    return {m,slots,notes,people,ans:{}};
   }catch(e){return null;}
 }
 const R=V?null:readBoshu();
@@ -461,7 +463,11 @@ if(R){
   $('p-staff').hidden=true;$('p-reply').hidden=false;
   document.querySelector('h1').textContent='追加募集';
   $('r-title').textContent=mLabel(R.m)+'の追加募集';
-  $('r-name').value=S.name||'';
+  const known=R.people.some(p=>p.nm===S.name);
+  $('r-sel').innerHTML='<option value="">名前を選んでください</option>'+R.people.map(p=>`<option ${p.nm===S.name?'selected':''}>${esc(p.nm)}</option>`).join('')+
+    `<option value="__other" ${!known&&S.name?'selected':''}>その他（名前を入力）</option>`;
+  $('r-name').value=known?'':(S.name||'');
+  $('r-sel').onchange=()=>{const v=$('r-sel').value;if(v&&v!=='__other'){S.name=v;sSave();}renderReply();};
   $('r-name').oninput=e=>{S.name=e.target.value.trim();sSave();renderReply();};
   $('r-memo').oninput=()=>renderReply();
   $('r-list').onclick=e=>{const b=e.target.closest('.opt');if(!b)return;const key=b.dataset.key,v=b.dataset.v;
@@ -470,23 +476,29 @@ if(R){
   renderReply();
 }
 function rLabel(o){return `${o.d}(${WD[wday(R.m,o.d)]}) ${o.s==='L'?'ランチ':'ディナー'}`;}
+function rName(){const v=$('r-sel').value;return v==='__other'?$('r-name').value.trim():v;}
+function rSlots(){const p=R.people.find(x=>x.nm===rName());return p?R.slots.filter(o=>!p.hide.includes(o.d)):R.slots;}
 function renderReply(){
-  $('r-list').innerHTML=R.slots.length?R.slots.map(o=>{const key=o.d+o.s,a=R.ans[key]||'';
+  $('r-namebox').hidden=$('r-sel').value!=='__other';
+  const sl=rSlots();
+  $('r-list').innerHTML=sl.length?sl.map(o=>{const key=o.d+o.s,a=R.ans[key]||'';
     return `<div class="rq"><div><span class="dt">${rLabel(o)}</span>${R.notes[o.d]?` <span class="minor">★${esc(R.notes[o.d])}</span>`:''}</div><div class="opts">`+
       RO[o.s].map(([k,lab])=>`<button class="opt c-${k}" data-key="${key}" data-v="${k}" aria-pressed="${a===k}">${lab}</button>`).join('')+
+      `<button class="opt" data-key="${key}" data-v="U" aria-pressed="${a==='U'}">未定</button>`+
       `<button class="opt no" data-key="${key}" data-v="X" aria-pressed="${a==='X'}">入れない</button></div></div>`;}).join('')
-    :'<p class="hint">募集している枠はありません。</p>';
-  const left=R.slots.filter(o=>!R.ans[o.d+o.s]).length,w=[];
-  if(!S.name)w.push('名前を入れてください。');if(left)w.push(`まだ${left}枠に答えていません。`);
+    :'<p class="hint">あなたに出ている募集枠はありません。ありがとうございます！</p>';
+  const left=sl.filter(o=>!R.ans[o.d+o.s]).length,w=[];
+  if(!rName())w.push('名前を選んでください。');if(left)w.push(`まだ${left}枠に答えていません。`);
   $('r-warn').hidden=!w.length;$('r-warn').textContent=w.join(' ');
   $('r-out').textContent=replyText();
 }
 function replyText(){
-  const lines=[`【追加募集への返事】${S.name||'（名前未入力）'}`];
-  R.slots.forEach(o=>{const a=R.ans[o.d+o.s];if(!a)return;lines.push(`${rLabel(o)}：${a==='X'?'入れません':(o.s==='L'?'入れます':P[a].t+' 入れます')}`);});
+  const nm=rName(),sl=rSlots();
+  const lines=[`【追加募集への返事】${nm||'（名前未選択）'}`];
+  sl.forEach(o=>{const a=R.ans[o.d+o.s];if(!a)return;lines.push(`${rLabel(o)}：${a==='X'?'入れません':a==='U'?'未定':(o.s==='L'?'入れます':P[a].t+' 入れます')}`);});
   const memo=$('r-memo').value.trim();if(memo)lines.push('ひとこと：'+memo);
   lines.push('');
-  lines.push(`#BOSHU|${R.m}|${encodeURIComponent(S.name)}|${R.slots.filter(o=>R.ans[o.d+o.s]).map(o=>o.d+o.s+'='+R.ans[o.d+o.s]).join(',')}|${encodeURIComponent(memo)}`);
+  lines.push(`#BOSHU|${R.m}|${encodeURIComponent(nm)}|${sl.filter(o=>R.ans[o.d+o.s]).map(o=>o.d+o.s+'='+R.ans[o.d+o.s]).join(',')}|${encodeURIComponent(memo)}`);
   return lines.join('\n');
 }
 if(V){
