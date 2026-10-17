@@ -101,6 +101,17 @@ tr.me td.nm{font-weight:700}
 .mylist .k{font-weight:700;border-radius:6px;padding:1px 8px;font-size:14px}
 .mylist .t{color:var(--muted);font-size:13px}
 .sum{font-size:14px;font-weight:700}
+.rlist{display:flex;flex-direction:column}
+.rlist label{display:flex;gap:10px;align-items:center;padding:7px 0;border-top:1px solid var(--line);font-size:14px;font-variant-numeric:tabular-nums}
+.rlist label:first-child{border-top:0}
+.rlist input{width:18px;height:18px}
+.rq{display:flex;flex-direction:column;gap:8px;padding:10px 0;border-top:1px solid var(--line)}
+.rq:first-child{border-top:0}
+.rq .dt{font-weight:700;font-variant-numeric:tabular-nums}
+.rq .opts{display:flex;gap:6px;flex-wrap:wrap}
+.opt{font:inherit;font-size:14px;border:2px solid var(--line);background:var(--bg);color:var(--fg);border-radius:9px;padding:6px 12px;cursor:pointer}
+.opt[aria-pressed="true"]{border-color:var(--fg)}
+.opt.no[aria-pressed="true"]{background:var(--no-bg);color:var(--no)}
 .tag{font-size:11px;font-weight:700;border-radius:5px;padding:0 6px;background:var(--no-bg);color:var(--no)}
 .dayoff .p{font-size:12px;font-weight:700;background:var(--surface);border-radius:5px;padding:0 5px}
 .exlist{display:flex;flex-direction:column;gap:8px}
@@ -217,6 +228,22 @@ details summary{cursor:pointer;font-weight:700}
       <p class="toast" id="s-toast"></p>
     </div>
   </section>
+  <section id="p-reply" class="panel" hidden>
+    <div class="box">
+      <h2 id="r-title">追加募集</h2>
+      <p class="hint">入れる枠も入れない枠も、分かるところは全部答えてください。</p>
+      <label class="f">名前<input type="text" id="r-name" placeholder="例：さくら" autocomplete="off"></label>
+    </div>
+    <div class="box"><div id="r-list"></div></div>
+    <div class="box">
+      <label class="f">ひとこと（任意）<input type="text" id="r-memo" placeholder="例：21日は20時からなら入れます"></label>
+      <p class="note" id="r-warn" hidden></p>
+      <pre class="out" id="r-out"></pre>
+      <div class="row"><button class="btn" id="r-copy">コピーする</button><span class="hint">→ さいぴーのLINEに貼り付けて送ってください</span></div>
+      <p class="toast" id="r-toast"></p>
+    </div>
+  </section>
+
   <section id="p-view" class="panel" hidden>
     <div class="box">
       <h2 id="v-title">確定シフト</h2>
@@ -417,6 +444,51 @@ function readShift(){
   }catch(e){return null;}
 }
 const V=readShift();
+
+/* ---------- 追加募集への返事（?r=...） ---------- */
+const RO={L:[['L','入れる']],D:[['E','17:30〜'],['D','18:00〜'],['N','19:00〜']]};
+function readBoshu(){
+  try{const r=new URLSearchParams(location.search).get('r');if(!r)return null;
+    const f=b64d(r).split(';');if(f[0]!=='r1')return null;
+    const m='20'+f[1].slice(0,2)+'-'+f[1].slice(2,4);
+    const slots=(f[2]||'').split(',').filter(Boolean).map(x=>({d:parseInt(x,10),s:x.slice(-1),need:+(x.match(/x(\d+)/)||[0,1])[1]})).filter(o=>o.d>0&&(o.s==='L'||o.s==='D'));
+    const notes={};(f[3]||'').split('|').filter(Boolean).forEach(x=>{const k=x.indexOf('=');if(k>0)notes[+x.slice(0,k)]=x.slice(k+1);});
+    return {m,slots,notes,ans:{}};
+  }catch(e){return null;}
+}
+const R=V?null:readBoshu();
+if(R){
+  $('p-staff').hidden=true;$('p-reply').hidden=false;
+  document.querySelector('h1').textContent='追加募集';
+  $('r-title').textContent=mLabel(R.m)+'の追加募集';
+  $('r-name').value=S.name||'';
+  $('r-name').oninput=e=>{S.name=e.target.value.trim();sSave();renderReply();};
+  $('r-memo').oninput=()=>renderReply();
+  $('r-list').onclick=e=>{const b=e.target.closest('.opt');if(!b)return;const key=b.dataset.key,v=b.dataset.v;
+    R.ans[key]=R.ans[key]===v?'':v;renderReply();};
+  $('r-copy').onclick=()=>copyText(replyText(),$('r-toast'),$('r-out'));
+  renderReply();
+}
+function rLabel(o){return `${o.d}(${WD[wday(R.m,o.d)]}) ${o.s==='L'?'ランチ':'ディナー'}`;}
+function renderReply(){
+  $('r-list').innerHTML=R.slots.length?R.slots.map(o=>{const key=o.d+o.s,a=R.ans[key]||'';
+    return `<div class="rq"><div><span class="dt">${rLabel(o)}</span>${R.notes[o.d]?` <span class="minor">★${esc(R.notes[o.d])}</span>`:''}</div><div class="opts">`+
+      RO[o.s].map(([k,lab])=>`<button class="opt c-${k}" data-key="${key}" data-v="${k}" aria-pressed="${a===k}">${lab}</button>`).join('')+
+      `<button class="opt no" data-key="${key}" data-v="X" aria-pressed="${a==='X'}">入れない</button></div></div>`;}).join('')
+    :'<p class="hint">募集している枠はありません。</p>';
+  const left=R.slots.filter(o=>!R.ans[o.d+o.s]).length,w=[];
+  if(!S.name)w.push('名前を入れてください。');if(left)w.push(`まだ${left}枠に答えていません。`);
+  $('r-warn').hidden=!w.length;$('r-warn').textContent=w.join(' ');
+  $('r-out').textContent=replyText();
+}
+function replyText(){
+  const lines=[`【追加募集への返事】${S.name||'（名前未入力）'}`];
+  R.slots.forEach(o=>{const a=R.ans[o.d+o.s];if(!a)return;lines.push(`${rLabel(o)}：${a==='X'?'入れません':(o.s==='L'?'入れます':P[a].t+' 入れます')}`);});
+  const memo=$('r-memo').value.trim();if(memo)lines.push('ひとこと：'+memo);
+  lines.push('');
+  lines.push(`#BOSHU|${R.m}|${encodeURIComponent(S.name)}|${R.slots.filter(o=>R.ans[o.d+o.s]).map(o=>o.d+o.s+'='+R.ans[o.d+o.s]).join(',')}|${encodeURIComponent(memo)}`);
+  return lines.join('\n');
+}
 if(V){
   $('p-staff').hidden=true;$('p-view').hidden=false;
   document.querySelector('h1').textContent='確定シフト';
