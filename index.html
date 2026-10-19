@@ -67,13 +67,14 @@ var menu=document.getElementById("menu"),view=document.getElementById("view"),fr
 var stack=[];
 function tile(it,onopen){
   var ok=it.page||it.sub||it.url;
-  var el=document.createElement(ok?"button":"div");
+  var el=document.createElement(it.url?"a":(ok?"button":"div"));
+  if(it.url){el.href=it.url;el.target="_blank";el.rel="noopener";el.style.textDecoration="none";el.style.borderColor="var(--acc)";}
   el.className="tile"+(ok?"":" soon");
   el.innerHTML='<span class="ic"></span><span class="nm"></span><span class="ds"></span>'+(ok?"":'<span class="badge">準備中</span>');
   el.querySelector(".ic").textContent=it.icon;
   el.querySelector(".nm").textContent=it.name;
   el.querySelector(".ds").textContent=it.desc;
-  if(ok) el.onclick=function(){onopen(it);};
+  if(ok&&!it.url) el.onclick=function(){onopen(it);};
   return el;
 }
 function show(mode,it){
@@ -93,7 +94,6 @@ function show(mode,it){
   }
 }
 function open(it,from,parent){
-  if(it.url){var w=window.open(it.url,"_blank");if(w){try{w.opener=null;}catch(e){}}else{location.href=it.url;}return;}
   stack=from==="sub"?[parent]:[];
   show(it.sub?"sub":"page",it);
 }
