@@ -52,6 +52,8 @@ textarea{min-height:90px;resize:vertical}
 .btn{font:inherit;font-weight:700;border:1px solid var(--accent);background:var(--accent);color:var(--bg);border-radius:9px;padding:9px 14px;cursor:pointer}
 .btn.ghost{background:none;color:var(--accent)}
 .btn.small{padding:6px 10px;font-size:13px}
+a.btn{text-decoration:none;display:inline-block}
+.btn.line{background:#06C755;border-color:#06C755;color:#fff}
 .btn.tiny{padding:2px 8px;font-size:12px;font-weight:500;border-radius:7px}
 .btn.danger{border-color:var(--no);color:var(--no);background:none}
 .btn.danger.arm{background:var(--no);color:var(--bg)}
@@ -227,8 +229,8 @@ details summary{cursor:pointer;font-weight:700}
       <p class="note" id="s-warn" hidden></p>
       <pre class="out" id="s-out"></pre>
       <div class="row">
-        <button class="btn" id="s-copy">コピーする</button>
-        <span class="hint">→ さいぴーのLINEに貼り付けて送ってください</span>
+        <button class="btn" id="s-copy">コピーする</button><a class="btn line" data-for="s-out" href="https://line.me/R/share" target="_blank" rel="noopener">LINEで送る</a>
+        <span class="hint">→ さいぴーに送ってください</span>
       </div>
       <p class="toast" id="s-toast"></p>
     </div>
@@ -245,7 +247,7 @@ details summary{cursor:pointer;font-weight:700}
       <label class="f">ひとこと（任意）<input type="text" id="r-memo" placeholder="例：21日は20時からなら入れます"></label>
       <p class="note" id="r-warn" hidden></p>
       <pre class="out" id="r-out"></pre>
-      <div class="row"><button class="btn" id="r-copy">コピーする</button><span class="hint">→ さいぴーのLINEに貼り付けて送ってください</span></div>
+      <div class="row"><button class="btn" id="r-copy">コピーする</button><a class="btn line" data-for="r-out" href="https://line.me/R/share" target="_blank" rel="noopener">LINEで送る</a><span class="hint">→ さいぴーに送ってください</span></div>
       <p class="toast" id="r-toast"></p>
     </div>
   </section>
@@ -331,6 +333,16 @@ function copyText(text,toastEl,preEl){
   function fallback(){const r=document.createRange();r.selectNodeContents(preEl);const s=getSelection();s.removeAllRanges();s.addRange(r);
     toastEl.textContent='文字を選択しました。長押しでコピーしてください';}
 }
+/* LINEで送る：押した瞬間の文をLINEの共有画面に渡す */
+document.addEventListener('click',e=>{
+  const a=e.target.closest&&e.target.closest('a.btn.line');if(!a)return;
+  const id=a.dataset.for;
+  if(['m-link','m-vlink','m-rout'].includes(id)&&typeof M!=='undefined'&&!M.url){
+    e.preventDefault();$('m-urlnote').hidden=false;$('m-url').focus();window.scrollTo({top:0,behavior:'smooth'});return;}
+  if(id==='s-out'&&typeof rememberName==='function')rememberName(S.name);
+  if(id==='r-out'&&typeof rememberName==='function')rememberName(rName());
+  a.href='https://line.me/R/share?text='+encodeURIComponent($(id).textContent);
+});
 function armButton(btn,label,action){
   let t;btn.addEventListener('click',()=>{
     if(btn.classList.contains('arm')){clearTimeout(t);btn.classList.remove('arm');btn.textContent=label;action();}
