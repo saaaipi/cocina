@@ -315,6 +315,8 @@ const $=id=>document.getElementById(id);
 /* 短いリンク用：日付の集まりを36進数のビットで、全体をbase64urlで */
 function b64e(str){const b=new TextEncoder().encode(str);let t='';b.forEach(x=>t+=String.fromCharCode(x));return btoa(t).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
 function b64d(t){t=t.replace(/-/g,'+').replace(/_/g,'/');while(t.length%4)t+='=';const r=atob(t);return new TextDecoder().decode(Uint8Array.from(r,c=>c.charCodeAt(0)));}
+function lnk(str){return '0'+b64e(str).replace(/Z/g,'Z0').replace(/-/g,'Z1').replace(/_/g,'Z2');}
+function lnkd(t){if(t[0]!=='0')return b64d(t);return b64d(t.slice(1).replace(/Z([012])/g,(_,c)=>c==='0'?'Z':c==='1'?'-':'_'));}
 const toMask=a=>a.reduce((m,d)=>m+2**(d-1),0).toString(36);
 function fromMask(t){let n=parseInt(t||'0',36),r=[];for(let d=1;n>0&&d<32;d++){if(n%2)r.push(d);n=Math.floor(n/2);}return r;}
 const safeTxt=t=>String(t).replace(/;/g,'；').replace(/\|/g,'｜').replace(/=/g,'＝').replace(/,/g,'、').replace(/[\r\n]+/g,' ');
@@ -356,7 +358,7 @@ const S=Object.assign({name:'',month:monthOffset(1),codes:{},memo:'',brush:'D',t
 if(!S.cfg)S.cfg={};
 (function readLink(){ // 店長のリンク ?p=... から休み・特別時間を受け取る
   try{const q=new URLSearchParams(location.search),sh=q.get('s');let o;
-    if(sh){const f=b64d(sh).split(';');const ex={},nt={};
+    if(sh){const f=lnkd(sh).split(';');const ex={},nt={};
       (f[4]||'').split('|').filter(Boolean).forEach(x=>{const[d,t]=x.split('=');if(t)ex[+d]=t.split(',').filter(Boolean);});
       (f[5]||'').split('|').filter(Boolean).forEach(x=>{const i=x.indexOf('=');if(i>0)nt[+x.slice(0,i)]=x.slice(i+1);});
       o={m:'20'+f[0].slice(0,2)+'-'+f[0].slice(2,4),L:fromMask(f[1]),D:fromMask(f[2]),h:fromMask(f[3]),ex,nt,names:(f[6]||'').split('|').filter(Boolean)};}
@@ -461,7 +463,7 @@ renderStaff();renderNameChips();
 /* ---------- 確定シフトの表示（?v=...） ---------- */
 function readShift(){
   try{const v=new URLSearchParams(location.search).get('v');if(!v)return null;
-    const f=b64d(v).split(';');if(f[0]!=='v1')return null;
+    const f=lnkd(v).split(';');if(f[0]!=='v1')return null;
     const m='20'+f[1].slice(0,2)+'-'+f[1].slice(2,4),n=daysIn(m);
     const names=f[5]?f[5].split('|'):[],times=f[7]?f[7].split('|'):[];
     const rows=(f[6]||'').split('|').map(r=>{const a=Array(n).fill('');let i=0;
@@ -476,7 +478,7 @@ const V=readShift();
 const RO={L:[['L','入れる']],D:[['E','17:30〜'],['D','18:00〜'],['N','19:00〜']]};
 function readBoshu(){
   try{const r=new URLSearchParams(location.search).get('r');if(!r)return null;
-    const f=b64d(r).split(';');if(f[0]!=='r1')return null;
+    const f=lnkd(r).split(';');if(f[0]!=='r1')return null;
     const m='20'+f[1].slice(0,2)+'-'+f[1].slice(2,4);
     const tt={};(f[5]||'').split('|').filter(Boolean).forEach(x=>{const k=x.indexOf('=');if(k>0)tt[+x.slice(0,k)]=x.slice(k+1).split(',');});
     const slots=(f[2]||'').split(',').filter(Boolean).map(x=>{const mm=x.match(/^(\d+)(?:x(\d+))?([LDT])(\d*)$/);if(!mm)return null;
