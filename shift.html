@@ -315,8 +315,8 @@ const $=id=>document.getElementById(id);
 /* 短いリンク用：日付の集まりを36進数のビットで、全体をbase64urlで */
 function b64e(str){const b=new TextEncoder().encode(str);let t='';b.forEach(x=>t+=String.fromCharCode(x));return btoa(t).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
 function b64d(t){t=t.replace(/-/g,'+').replace(/_/g,'/');while(t.length%4)t+='=';const r=atob(t);return new TextDecoder().decode(Uint8Array.from(r,c=>c.charCodeAt(0)));}
-function lnk(str){return 'x'+b64e(str).replace(/Z/g,'Z0').replace(/-/g,'Z1').replace(/_/g,'Z2');}
-function lnkd(t){if(t[0]!=='x')return b64d(t);return b64d(t.slice(1).replace(/Z([012])/g,(_,c)=>c==='0'?'Z':c==='1'?'-':'_'));}
+function lnk(str){return ('x'+b64e(str).replace(/Z/g,'Z0').replace(/-/g,'Z1').replace(/_/g,'Z2')).match(/.{1,24}/g).join('-');}
+function lnkd(t){if(t[0]!=='x')return b64d(t);return b64d(t.replace(/-/g,'').slice(1).replace(/Z([012])/g,(_,c)=>c==='0'?'Z':c==='1'?'-':'_'));}
 const toMask=a=>a.reduce((m,d)=>m+2**(d-1),0).toString(36);
 function fromMask(t){let n=parseInt(t||'0',36),r=[];for(let d=1;n>0&&d<32;d++){if(n%2)r.push(d);n=Math.floor(n/2);}return r;}
 const safeTxt=t=>String(t).replace(/;/g,'；').replace(/\|/g,'｜').replace(/=/g,'＝').replace(/,/g,'、').replace(/[\r\n]+/g,' ');
